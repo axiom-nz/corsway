@@ -1,27 +1,27 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"mime"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/axiom-nz/corsway/internal/config"
 )
 
 var (
-	// Limit each IP to 20 requests per 5 minutes
-	rateLimit         = 20
-	rateLimitDuration = 5 * time.Minute
-	requestCounts     = make(map[string]int)
-	countsLock        = sync.Mutex{}
-	// Max allowed size of the request body is 10MB
-	maxBodySize int64 = 10 << 20 // 10 MB
-	// HTTP client with timeouts
-	client = &http.Client{
+	cfg = config.Config{}
+
+	requestCounts = make(map[string]int)
+	countsLock    = sync.Mutex{}
+	client        = &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			DisableKeepAlives:     true,
@@ -43,15 +43,25 @@ func init() {
 }
 
 func main() {
-	// Set up logging
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
+	flag.IntVar(&cfg.Port, "port", 3047, "Port to listen on")
+	flag.IntVar(&cfg.RateLimit, "rate-limit", 20, "Maximum number of requests per rate-limit-window to allow")
+	flag.DurationVar(&cfg.RateLimitWindow, "rate-limit-window", 5*60, "Duration of the rate-limit window")
+	flag.Int64Var(&cfg.MaxRequestBytes, "max-request-bytes", 10<<20, "Maximum size of the request body in bytes")
+	whitelist := flag.String("whitelist", "", "Comma-separated list of Origins to allow")
+	flag.Parse()
+
+	if strings.Trim(*whitelist, " ") != "" {
+		cfg.OriginWhitelist = strings.Split(*whitelist, ",")
+	}
+
 	// Register handlers
-	http.HandleFunc("/", limitRate(limitSize(handler)))
+	http.HandleFunc("/", limitSources(limitRate(limitSize(handler))))
 
 	// Start server
-	log.Println("Starting server on :3047")
-	log.Fatal(http.ListenAndServe(":3047", nil))
+	log.Println("Starting server on port", cfg.Port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), nil))
 }
 
 func prepareURL(rawURL string) (string, error) {
@@ -180,12 +190,12 @@ func limitRate(next http.HandlerFunc) http.HandlerFunc {
 		if !exists {
 			requestCounts[ip] = 1
 			go func(ip string) {
-				time.Sleep(rateLimitDuration)
+				time.Sleep(cfg.RateLimitWindow)
 				countsLock.Lock()
 				delete(requestCounts, ip)
 				countsLock.Unlock()
 			}(ip)
-		} else if count >= rateLimit {
+		} else if count >= cfg.RateLimit {
 			countsLock.Unlock()
 			log.Printf("Rate limit exceeded for %s", ip)
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
@@ -201,7 +211,18 @@ func limitRate(next http.HandlerFunc) http.HandlerFunc {
 
 func limitSize(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
+		r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxRequestBytes)
+		next(w, r)
+	}
+}
+
+func limitSources(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !slices.Contains(cfg.OriginWhitelist, r.Header.Get("Origin")) {
+			log.Printf("Blocked request from %s", r.RemoteAddr)
+			http.Error(w, "Blocked request", http.StatusForbidden)
+			return
+		}
 		next(w, r)
 	}
 }
