@@ -1,4 +1,5 @@
-./corsway
-.DS_STORE
-
+bin/
 .idea/
+
+.DS_STORE
+.env
