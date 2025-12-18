@@ -45,7 +45,7 @@ func init() {
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	flag.IntVar(&cfg.Port, "port", 3047, "Port to listen on")
+	flag.IntVar(&cfg.Port, "port", 8080, "Port to listen on")
 	flag.IntVar(&cfg.RateLimit, "rate-limit", 20, "Maximum number of requests per rate-limit-window to allow")
 	flag.DurationVar(&cfg.RateLimitWindow, "rate-limit-window", 5*60, "Duration of the rate-limit window")
 	flag.Int64Var(&cfg.MaxRequestBytes, "max-request-bytes", 10<<20, "Maximum size of the request body in bytes")
@@ -218,11 +218,18 @@ func limitSize(next http.HandlerFunc) http.HandlerFunc {
 
 func limitSources(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !slices.Contains(cfg.OriginWhitelist, r.Header.Get("Origin")) {
-			log.Printf("Blocked request from %s", r.RemoteAddr)
-			http.Error(w, "Blocked request", http.StatusForbidden)
+		if len(cfg.OriginWhitelist) == 0 {
+			next(w, r)
 			return
 		}
-		next(w, r)
+
+		if slices.Contains(cfg.OriginWhitelist, r.Header.Get("Origin")) {
+			next(w, r)
+			return
+		}
+
+		log.Printf("Blocked request from %s", r.RemoteAddr)
+		http.Error(w, "Blocked request", http.StatusForbidden)
+		return
 	}
 }
