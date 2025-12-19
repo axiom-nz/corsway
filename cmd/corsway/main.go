@@ -97,13 +97,21 @@ func prepareURL(rawURL string) (string, error) {
 	return parsedURL.String(), nil
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	// Set CORS headers
+func setResponseCorsHeaders(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "*")
+	w.Header().Set("Access-Control-Expose-Headers", "*")
 
-	// Handle OPTIONS method
+	if reqHeaders := r.Header.Get("Access-Control-Request-Headers"); reqHeaders != "" {
+		w.Header().Set("Access-Control-Allow-Headers", reqHeaders)
+	} else {
+		w.Header().Set("Access-Control-Allow-Headers", "*")
+	}
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	setResponseCorsHeaders(w, r)
+
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -127,8 +135,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Proxying request to %q from %s", preparedURL, r.RemoteAddr)
 
-	// Create request
-	req, err := http.NewRequestWithContext(r.Context(), r.Method, preparedURL, nil)
+	// Create request using same method as original
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, preparedURL, r.Body)
 	if err != nil {
 		log.Printf("Failed to create request for %q: %v", preparedURL, err)
 		http.Error(w, "Failed to create request", http.StatusInternalServerError)
@@ -136,9 +144,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set headers
+	// todo: randomised user agent
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	if r.Header.Get("Content-Type") != "" {
+		req.Header.Set("Content-Type", r.Header.Get("Content-Type"))
+	}
 
 	// Make request
 	resp, err := client.Do(req)
@@ -162,12 +174,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Ensure CORS headers are set
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "*")
+	// Override response cors headers
+	setResponseCorsHeaders(w, r)
 
-	// Write status code
 	w.WriteHeader(resp.StatusCode)
 
 	// Copy response body
@@ -177,7 +186,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Successfully proxied %d bytes from %q", written, preparedURL)
+	log.Printf("Proxied %d bytes from %q", written, preparedURL)
 }
 
 func limitRate(next http.HandlerFunc) http.HandlerFunc {
