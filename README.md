@@ -6,7 +6,7 @@
 
 ## How to Use
 
-Simply prepend your desired URL with `https://[your-corsway-host]/?url=`. 
+Simply prepend your desired URL with `https://[your-corsway-host]/`. 
 
 
 ### Example
@@ -17,7 +17,7 @@ If you want to proxy a request to `https://example.com/api/data`, you would use 
 
 ````
 
-https://[your-corsway-host]/?url=https://example.com/api/data
+https://[your-corsway-host]/https://example.com/api/data
 
 ````
 

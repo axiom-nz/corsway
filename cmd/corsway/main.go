@@ -57,11 +57,11 @@ func main() {
 	}
 
 	// Register handlers
-	http.HandleFunc("/", limitSources(limitRate(limitSize(handler))))
+	handlerStack := limitSources(limitRate(limitSize(handler)))
 
 	// Start server
 	log.Println("Starting server on port", cfg.Port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), handlerStack))
 }
 
 func prepareURL(rawURL string) (string, error) {
@@ -109,11 +109,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get URL from query parameter
-	targetURL := r.URL.Query().Get("url")
+	// Get URL from query path
+	targetURL := strings.TrimPrefix(r.URL.RequestURI(), "/")
 	if targetURL == "" {
-		log.Printf("Missing URL parameter in request from %s", r.RemoteAddr)
-		http.Error(w, "URL parameter is required", http.StatusBadRequest)
+		log.Printf("Missing URL in query path from %s", r.RemoteAddr)
+		http.Error(w, "URL is required in query path", http.StatusBadRequest)
 		return
 	}
 
@@ -128,7 +128,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Proxying request to %q from %s", preparedURL, r.RemoteAddr)
 
 	// Create request
-	req, err := http.NewRequestWithContext(r.Context(), "GET", preparedURL, nil)
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, preparedURL, nil)
 	if err != nil {
 		log.Printf("Failed to create request for %q: %v", preparedURL, err)
 		http.Error(w, "Failed to create request", http.StatusInternalServerError)
