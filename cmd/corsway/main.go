@@ -57,8 +57,10 @@ func main() {
 	// Register handlers
 	handlerStack := limitSources(cfg, limitRate(cfg, limitSize(cfg, handler)))
 
+	log.Printf("Starting server:\n  Port: %d\n  Rate limit: %d\n  Window: %v\n  Max request size: %d\n  Origin Whitelist: %v",
+		cfg.Port, cfg.RateLimit, cfg.RateLimitWindow, cfg.MaxRequestBytes, cfg.OriginWhitelist)
+
 	// Start server
-	log.Println("Starting server on port", cfg.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), handlerStack))
 }
 
