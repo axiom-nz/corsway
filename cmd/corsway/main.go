@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -17,8 +19,6 @@ import (
 )
 
 var (
-	cfg = config.Config{}
-
 	requestCounts = make(map[string]int)
 	countsLock    = sync.Mutex{}
 	client        = &http.Client{
@@ -45,19 +45,17 @@ func init() {
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	flag.IntVar(&cfg.Port, "port", 8080, "Port to listen on")
-	flag.IntVar(&cfg.RateLimit, "rate-limit", 20, "Maximum number of requests per rate-limit-window to allow")
-	flag.DurationVar(&cfg.RateLimitWindow, "rate-limit-window", 5*60, "Duration of the rate-limit window")
-	flag.Int64Var(&cfg.MaxRequestBytes, "max-request-bytes", 10<<20, "Maximum size of the request body in bytes")
-	whitelist := flag.String("whitelist", "", "Comma-separated list of Origins to allow")
-	flag.Parse()
-
-	if strings.Trim(*whitelist, " ") != "" {
-		cfg.OriginWhitelist = strings.Split(*whitelist, ",")
+	// Load config with defaults
+	cfg, err := config.Load(os.Args[1:])
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
+		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	// Register handlers
-	handlerStack := limitSources(limitRate(limitSize(handler)))
+	handlerStack := limitSources(cfg, limitRate(cfg, limitSize(cfg, handler)))
 
 	// Start server
 	log.Println("Starting server on port", cfg.Port)
@@ -189,7 +187,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Proxied %d bytes from %q", written, preparedURL)
 }
 
-func limitRate(next http.HandlerFunc) http.HandlerFunc {
+func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := r.RemoteAddr
 
@@ -218,14 +216,14 @@ func limitRate(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func limitSize(next http.HandlerFunc) http.HandlerFunc {
+func limitSize(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxRequestBytes)
 		next(w, r)
 	}
 }
 
-func limitSources(next http.HandlerFunc) http.HandlerFunc {
+func limitSources(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if len(cfg.OriginWhitelist) == 0 {
 			next(w, r)
