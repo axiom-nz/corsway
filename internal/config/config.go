@@ -72,7 +72,9 @@ func Load(args []string) (*Config, error) {
 		cfg.MaxRequestBytes = maxRequestBytes
 	}
 
-	whitelist = os.Getenv("WHITELIST")
+	if whitelistVal := os.Getenv("WHITELIST"); whitelistVal != "" {
+		whitelist = whitelistVal
+	}
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
