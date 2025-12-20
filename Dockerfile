@@ -18,3 +18,4 @@ WORKDIR /
 COPY --from=build /corsway /corsway
 
 ENTRYPOINT ["/corsway"]
+CMD []
