@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/axiom-nz/corsway/internal/config"
+	"github.com/axiom-nz/corsway/internal/proxy"
 )
 
 var (
@@ -126,7 +127,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare URL
-	preparedURL, err := prepareURL(targetURL)
+	preparedURL, err := proxy.PrepareURL(targetURL)
 	if err != nil {
 		log.Printf("Invalid URL %q from %s: %v", targetURL, r.RemoteAddr, err)
 		http.Error(w, fmt.Sprintf("Invalid URL: %v", err), http.StatusBadRequest)
