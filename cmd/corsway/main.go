@@ -8,20 +8,20 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"net/url"
 	"os"
-	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/axiom-nz/corsway/internal/config"
+<<<<<<< Updated upstream
+=======
+	"github.com/axiom-nz/corsway/internal/middleware"
+	"github.com/axiom-nz/corsway/internal/proxy"
+>>>>>>> Stashed changes
 )
 
 var (
-	requestCounts = make(map[string]int)
-	countsLock    = sync.Mutex{}
-	client        = &http.Client{
+	client = &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			DisableKeepAlives:     true,
@@ -54,47 +54,14 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Register handlers
-	handlerStack := limitSources(cfg, limitRate(cfg, limitSize(cfg, handler)))
+	// Register middleware
+	handlerStack := middleware.Chain(cfg, handler)
 
 	log.Printf("Starting server:\n  Port: %d\n  Rate limit: %d\n  Window: %v\n  Max request size: %d\n  Origin Whitelist: %v",
 		cfg.Port, cfg.RateLimit, cfg.RateLimitWindow, cfg.MaxRequestBytes, cfg.OriginWhitelist)
 
 	// Start server
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), handlerStack))
-}
-
-func prepareURL(rawURL string) (string, error) {
-	// Remove any whitespace
-	rawURL = strings.TrimSpace(rawURL)
-
-	// Fix common URL issues
-	if strings.HasPrefix(rawURL, "//") {
-		rawURL = "https:" + rawURL
-	} else if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
-		rawURL = "https://" + rawURL
-	}
-
-	// Fix double slashes in the path (except for the protocol)
-	parts := strings.SplitN(rawURL, "://", 2)
-	if len(parts) == 2 {
-		protocol := parts[0]
-		rest := strings.Replace(parts[1], "//", "/", -1)
-		rawURL = protocol + "://" + rest
-	}
-
-	// Parse and validate the URL
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil {
-		return "", fmt.Errorf("invalid URL: %v", err)
-	}
-
-	// Ensure the URL has a host
-	if parsedURL.Host == "" {
-		return "", fmt.Errorf("invalid URL: missing host")
-	}
-
-	return parsedURL.String(), nil
 }
 
 func setResponseCorsHeaders(w http.ResponseWriter, r *http.Request) {
@@ -187,58 +154,4 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Proxied %d bytes from %q", written, preparedURL)
-}
-
-func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr
-
-		countsLock.Lock()
-		count, exists := requestCounts[ip]
-
-		if !exists {
-			requestCounts[ip] = 1
-			go func(ip string) {
-				time.Sleep(cfg.RateLimitWindow)
-				countsLock.Lock()
-				delete(requestCounts, ip)
-				countsLock.Unlock()
-			}(ip)
-		} else if count >= cfg.RateLimit {
-			countsLock.Unlock()
-			log.Printf("Rate limit exceeded for %s", ip)
-			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
-			return
-		} else {
-			requestCounts[ip]++
-		}
-		countsLock.Unlock()
-
-		next(w, r)
-	}
-}
-
-func limitSize(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxRequestBytes)
-		next(w, r)
-	}
-}
-
-func limitSources(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if len(cfg.OriginWhitelist) == 0 {
-			next(w, r)
-			return
-		}
-
-		if slices.Contains(cfg.OriginWhitelist, r.Header.Get("Origin")) {
-			next(w, r)
-			return
-		}
-
-		log.Printf("Blocked request from %s", r.RemoteAddr)
-		http.Error(w, "Blocked request", http.StatusForbidden)
-		return
-	}
 }
