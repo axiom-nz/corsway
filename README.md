@@ -13,9 +13,20 @@ https://[your-corsway-host].com/https://api.example.com/data
 The proxy manages the CORS handshake and forwards the request transparently.
 
 ## Usage
+`just test` will run all unit tests.
+
+`just build` will run all unit tests and build the binary.
+
+`just build-docker` run all unit tests and create a docker image.
+
+`just run` will run the last built binary.
+
+`just run-docker` will run the docker image.
+
+### Running
 With default configuration, exposed on port 8080:
 
-### Docker
+#### Docker
 ```bash
 just build-docker
 just run-docker
@@ -26,7 +37,7 @@ docker build -t axiom-nz/corsway .
 docker run -p 8080:8080 axiom-nz/corsway
 ```
 
-### Local
+#### Local
 
 ```bash
 just build
