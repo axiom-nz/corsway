@@ -46,6 +46,12 @@ func TestPrepareURL(t *testing.T) {
 			wantErr:  false,
 		},
 		{
+			name:     "single slash protocol",
+			input:    "https:/example.com/api",
+			expected: "https://example.com/api",
+			wantErr:  false,
+		},
+		{
 			name:    "empty string",
 			input:   "",
 			wantErr: true,
