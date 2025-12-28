@@ -10,13 +10,18 @@ import (
 func PrepareURL(rawURL string) (string, error) {
 	rawURL = strings.TrimSpace(rawURL)
 
-	// Prepend protocol to URL if missing
-	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
-		if strings.HasPrefix(rawURL, "//") {
-			rawURL = "https:" + rawURL
-		} else {
-			rawURL = "https://" + rawURL
-		}
+	// Normalise prefix to ensure a valid protocol is present
+	switch {
+	case strings.HasPrefix(rawURL, "http://") || strings.HasPrefix(rawURL, "https://"):
+		// Already valid, do nothing
+	case strings.HasPrefix(rawURL, "http:/"):
+		rawURL = strings.Replace(rawURL, "http:/", "http://", 1)
+	case strings.HasPrefix(rawURL, "https:/"):
+		rawURL = strings.Replace(rawURL, "https:/", "https://", 1)
+	case strings.HasPrefix(rawURL, "//"):
+		rawURL = "https:" + rawURL
+	default:
+		rawURL = "https://" + rawURL
 	}
 
 	// Parse and validate the URL
