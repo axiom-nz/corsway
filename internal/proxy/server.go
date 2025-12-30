@@ -6,11 +6,16 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/axiom-nz/corsway/internal/config"
 	"github.com/axiom-nz/corsway/internal/middleware"
+)
+
+const (
+	defaultUserAgent      = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+	defaultAccept         = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+	defaultAcceptLanguage = "en-US,en;q=0.9"
 )
 
 type Server struct {
@@ -18,12 +23,10 @@ type Server struct {
 	Client *http.Client
 	Logger *log.Logger
 
-	handler       http.Handler
-	requestCounts map[string]int
-	countsLock    sync.Mutex
+	handler http.Handler
 }
 
-func NewServer(cfg *config.Config, logger *log.Logger) *Server {
+func NewProxy(cfg *config.Config, logger *log.Logger) *Server {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
@@ -38,10 +41,9 @@ func NewServer(cfg *config.Config, logger *log.Logger) *Server {
 	}
 
 	server := &Server{
-		Config:        cfg,
-		Client:        client,
-		Logger:        logger,
-		requestCounts: make(map[string]int),
+		Config: cfg,
+		Client: client,
+		Logger: logger,
 	}
 
 	server.handler = middleware.Chain(cfg, server.handleProxy)
@@ -54,7 +56,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
-	setResponseCorsHeaders(w, r)
+	s.setCORSHeaders(w, r)
 
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
@@ -86,14 +88,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set headers
-	// todo: randomised user agent
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	if r.Header.Get("Content-Type") != "" {
-		req.Header.Set("Content-Type", r.Header.Get("Content-Type"))
-	}
+	s.setProxyHeaders(req, r)
 
 	// Make request
 	resp, err := s.Client.Do(req)
@@ -118,7 +113,7 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Override response cors headers
-	setResponseCorsHeaders(w, r)
+	s.setCORSHeaders(w, r)
 	w.WriteHeader(resp.StatusCode)
 
 	// Copy response body
@@ -131,7 +126,28 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Proxied %d bytes from %q", written, preparedURL)
 }
 
-func setResponseCorsHeaders(w http.ResponseWriter, r *http.Request) {
+func (s *Server) setProxyHeaders(outReq, inReq *http.Request) {
+	// todo: randomised user agent
+	outReq.Header.Set("User-Agent", defaultUserAgent)
+
+	accept := inReq.Header.Get("Accept")
+	if accept == "" || accept == "*/*" {
+		accept = defaultAccept
+	}
+	outReq.Header.Set("Accept", accept)
+
+	acceptLanguage := inReq.Header.Get("Accept-Language")
+	if acceptLanguage == "" {
+		acceptLanguage = defaultAcceptLanguage
+	}
+	outReq.Header.Set("Accept-Language", acceptLanguage)
+
+	if ct := inReq.Header.Get("Content-Type"); ct != "" {
+		outReq.Header.Set("Content-Type", ct)
+	}
+}
+
+func (s *Server) setCORSHeaders(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Expose-Headers", "*")

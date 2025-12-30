@@ -27,7 +27,7 @@ func TestProxyIntegration(t *testing.T) {
 		MaxRequestBytes: 1024 * 1024,
 	}
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
-	server := NewServer(cfg, logger)
+	server := NewProxy(cfg, logger)
 
 	testServer := httptest.NewServer(server)
 	defer testServer.Close()
