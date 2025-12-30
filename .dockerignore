@@ -1,8 +1,10 @@
 # Repository content
 .gitignore
+.github/
 .idea/
 .DS_Store
 .git/
+justfile
 Dockerfile
 README.md
 
