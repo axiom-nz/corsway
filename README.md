@@ -2,12 +2,18 @@
 
 A simple CORS proxy written in Go. Append any URL to your corsway instance and get back a CORS-enabled response.
 
+A free hosted version is available at [2677929.xyz](https://2677929.xyz/).
+
 ## Usage
 
-Prepend your corsway host to any URL:
+Prepend the corsway host to any URL:
 
-```
+```bash
 https://[your-corsway-host].com/https://api.example.com/data
+
+# or 
+
+https://proxy.2677929.xyz/https://api.example.com/data
 ```
 
 The proxy manages the CORS handshake and forwards the request transparently.
@@ -96,4 +102,4 @@ Contributions are welcome. Please open an issue or submit a pull request for any
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
-It includes code adapted from [BradPerbs/cors.lol](https://github.com/BradPerbs/cors.lol), licensed under the MIT License.
+`corsway` includes code adapted from [BradPerbs/cors.lol](https://github.com/BradPerbs/cors.lol), licensed under the MIT License.

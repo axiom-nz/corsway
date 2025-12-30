@@ -69,7 +69,6 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prepare URL
 	preparedURL, err := PrepareURL(targetURL)
 	if err != nil {
 		log.Printf("Invalid URL %q from %s: %v", targetURL, r.RemoteAddr, err)
@@ -120,7 +119,6 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Override response cors headers
 	setResponseCorsHeaders(w, r)
-
 	w.WriteHeader(resp.StatusCode)
 
 	// Copy response body
