@@ -10,11 +10,6 @@ import (
 	"github.com/axiom-nz/corsway/internal/config"
 )
 
-var (
-	requestCounts = make(map[string]int)
-	countsLock    = sync.Mutex{}
-)
-
 // Chain applies rate limiting, origin whitelisting, and request size limits to the given handler
 func Chain(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	return limitRate(cfg, limitSources(cfg, limitSize(cfg, next)))
@@ -46,18 +41,23 @@ func limitSources(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 }
 
 func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
+	var (
+		counts     = make(map[string]int)
+		countsLock sync.Mutex
+	)
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := r.RemoteAddr
 
 		countsLock.Lock()
-		count, exists := requestCounts[ip]
+		count, exists := counts[ip]
 
 		if !exists {
-			requestCounts[ip] = 1
+			counts[ip] = 1
 			go func(ip string) {
 				time.Sleep(cfg.RateLimitWindow)
 				countsLock.Lock()
-				delete(requestCounts, ip)
+				delete(counts, ip)
 				countsLock.Unlock()
 			}(ip)
 		} else if count >= cfg.RateLimit {
@@ -66,7 +66,7 @@ func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 			return
 		} else {
-			requestCounts[ip]++
+			counts[ip]++
 		}
 		countsLock.Unlock()
 
