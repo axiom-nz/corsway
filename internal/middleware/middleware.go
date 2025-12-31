@@ -77,13 +77,16 @@ func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 }
 
 // getClientIP returns the client IP address from the request headers
-func getClientIP(r *http.Request) string {
-	forwardedFor := r.Header.Get("X-Forwarded-For")
-	if forwardedFor != "" {
-		// If multiple proxies are used, take the first one
-		// If cut fails to find a comma, return the entire string regardless
-		source, _, _ := strings.Cut(forwardedFor, ",")
-		return strings.TrimSpace(source)
+// If the TrustProxy flag is set, it will first check the X-Forwarded-For header
+func getClientIP(cfg *config.Config, r *http.Request) string {
+	if cfg.TrustProxy {
+		forwardedFor := r.Header.Get("X-Forwarded-For")
+		if forwardedFor != "" {
+			// If multiple proxies are used, take the first one
+			// If cut fails to find a comma, return the entire string regardless
+			source, _, _ := strings.Cut(forwardedFor, ",")
+			return strings.TrimSpace(source)
+		}
 	}
 
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

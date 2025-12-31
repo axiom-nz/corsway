@@ -15,6 +15,7 @@ type Config struct {
 	RateLimitWindow time.Duration
 	MaxRequestBytes int64
 	OriginWhitelist []string
+	TrustProxy      bool
 }
 
 // Load initialises the application configuration by processing inputs from
@@ -29,6 +30,7 @@ func Load(args []string) (*Config, error) {
 		RateLimit:       20,
 		RateLimitWindow: 5 * time.Minute,
 		MaxRequestBytes: 10 << 20,
+		TrustProxy:      false,
 	}
 
 	var whitelist string
@@ -39,6 +41,7 @@ func Load(args []string) (*Config, error) {
 	fs.DurationVar(&cfg.RateLimitWindow, "rate-limit-window", cfg.RateLimitWindow, "Duration of the rate-limit window")
 	fs.Int64Var(&cfg.MaxRequestBytes, "max-request-bytes", cfg.MaxRequestBytes, "Maximum size of the request body in bytes")
 	fs.StringVar(&whitelist, "whitelist", "", "Comma-separated list of Origins to allow")
+	fs.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "Trust X-Forwarded-For headers (use only behind a trusted proxy)")
 
 	if portVal := os.Getenv("PORT"); portVal != "" {
 		port, err := strconv.Atoi(portVal)
@@ -74,6 +77,14 @@ func Load(args []string) (*Config, error) {
 
 	if whitelistVal := os.Getenv("WHITELIST"); whitelistVal != "" {
 		whitelist = whitelistVal
+	}
+
+	if trustProxyVal := os.Getenv("TRUST_PROXY"); trustProxyVal != "" {
+		trustProxy, err := strconv.ParseBool(trustProxyVal)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TRUST_PROXY environment variable: %v", err)
+		}
+		cfg.TrustProxy = trustProxy
 	}
 
 	if err := fs.Parse(args); err != nil {
