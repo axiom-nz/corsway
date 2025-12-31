@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,7 +49,7 @@ func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr
+		ip := getClientIP(r)
 
 		countsLock.Lock()
 		count, exists := counts[ip]
@@ -72,4 +74,22 @@ func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 
 		next(w, r)
 	}
+}
+
+// getClientIP returns the client IP address from the request headers
+func getClientIP(r *http.Request) string {
+	forwardedFor := r.Header.Get("X-Forwarded-For")
+	if forwardedFor != "" {
+		// If multiple proxies are used, take the first one
+		// If cut fails to find a comma, return the entire string regardless
+		source, _, _ := strings.Cut(forwardedFor, ",")
+		return strings.TrimSpace(source)
+	}
+
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+
+	return host
 }
