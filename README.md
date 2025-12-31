@@ -60,37 +60,27 @@ chmod +x corsway
 
 Configuration is handled via command-line flags or environment variables. **Command-line flags take precedence over environment variables.**
 
-| Flag                 | Env Var             | Default | Description                                 |
-|----------------------|---------------------|---------|---------------------------------------------|
-| `-port`              | `PORT`              | 8080    | Server listening port                       |
-| `-whitelist`         | `WHITELIST`         | (none)  | Comma-separated list of allowed origins     |
-| `-rate-limit`        | `RATE_LIMIT`        | 20      | Max requests per IP per window              |
-| `-rate-limit-window` | `RATE_LIMIT_WINDOW` | 5m      | Duration of rate limit window (e.g. 1m, 1h) |
-| `-max-request-bytes` | `MAX_REQUEST_BYTES` | 10MB    | Maximum allowed request body size           |
+| Flag                 | Env Var             | Default | Description                                                     |
+|----------------------|---------------------|---------|-----------------------------------------------------------------|
+| `-port`              | `PORT`              | 8080    | Server listening port                                           |
+| `-whitelist`         | `WHITELIST`         | (none)  | Comma-separated list of allowed origins                         |
+| `-rate-limit`        | `RATE_LIMIT`        | 20      | Max requests per IP per window                                  |
+| `-rate-limit-window` | `RATE_LIMIT_WINDOW` | 5m      | Duration of rate limit window (e.g. 1m, 1h)                     |
+| `-max-request-bytes` | `MAX_REQUEST_BYTES` | 10MB    | Maximum allowed request body size                               |
+| `-trust-proxy`       | `TRUST_PROXY`       | false   | Trust X-Forwarded-For headers (use only behind a reverse proxy) |
 
 ### Examples:
 
 ```bash
-just run 8080 --rate-limit=50 --rate-limit-window=1m --whitelist=https://myapp.com,https://staging.myapp.com
-# or
-just run-docker 8080 --rate-limit=50 --rate-limit-window=1m --whitelist=https://myapp.com,https://staging.myapp.com
+just run 8080 --rate-limit=50 --rate-limit-window=1m --whitelist=https://myapp.com,https://staging.myapp.com --trust-proxy
 ```
-
-
-```bash
-docker run -p 8080:8080 \
-  -e RATE_LIMIT=50 \
-  -e RATE_LIMIT_WINDOW=1m \
-  -e WHITELIST=https://myapp.com,https://staging.myapp.com \
-  axiom-nz/corsway
-```
-
 
 ## Features
 
 *   **CORS Proxy:** Adds required `Access-Control-Allow-*` headers to responses.
 *   **Origin Control:** Optional `Origin` allowlist to restrict access to specific domains.
 *   **Rate Limiting:** IP-based limiting to prevent abuse.
+*   **Proxy Support:** Configurable `X-Forwarded-For` support for deployments behind reverse proxies.
 *   **Request Safety:** Enforces limits on request body size.
 *   **Normalisation:** Handles common malformed URL patterns.
 
