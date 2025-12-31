@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/axiom-nz/corsway/internal/config"
 )
@@ -39,40 +37,6 @@ func limitSources(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 		log.Printf("Blocked request from %s", r.RemoteAddr)
 		http.Error(w, "Blocked request", http.StatusForbidden)
 		return
-	}
-}
-
-func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
-	var (
-		counts     = make(map[string]int)
-		countsLock sync.Mutex
-	)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		ip := getClientIP(r)
-
-		countsLock.Lock()
-		count, exists := counts[ip]
-
-		if !exists {
-			counts[ip] = 1
-			go func(ip string) {
-				time.Sleep(cfg.RateLimitWindow)
-				countsLock.Lock()
-				delete(counts, ip)
-				countsLock.Unlock()
-			}(ip)
-		} else if count >= cfg.RateLimit {
-			countsLock.Unlock()
-			log.Printf("Rate limit exceeded for %s", ip)
-			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
-			return
-		} else {
-			counts[ip]++
-		}
-		countsLock.Unlock()
-
-		next(w, r)
 	}
 }
 
