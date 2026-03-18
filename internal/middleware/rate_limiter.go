@@ -17,13 +17,15 @@ type clientData struct {
 
 func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 	var (
-		mu      sync.Mutex
-		clients = make(map[string]*clientData)
+		mu       sync.Mutex
+		clients  = make(map[string]*clientData)
+		fillRate = cfg.RateLimitWindow / time.Duration(cfg.RateLimit)
 	)
 
 	// Run rate limiter cleanup outside of the http request path
+	ticker := time.NewTicker(time.Minute)
 	go func() {
-		for range time.Tick(time.Minute) {
+		for range ticker.C {
 			mu.Lock()
 			for ip, data := range clients {
 				if time.Since(data.lastSeen) > 5*time.Minute {
@@ -42,7 +44,7 @@ func limitRate(cfg *config.Config, next http.HandlerFunc) http.HandlerFunc {
 
 		if !exists {
 			client = &clientData{
-				limiter:  rate.NewLimiter(rate.Every(cfg.RateLimitWindow), cfg.RateLimit),
+				limiter:  rate.NewLimiter(rate.Every(fillRate), cfg.RateLimit),
 				lastSeen: time.Now(),
 			}
 			clients[ip] = client
